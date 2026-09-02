@@ -256,8 +256,15 @@ function CalendarPage() {
     const from = `${year}-${pad(month + 1)}-01`
     const last = new Date(year, month + 1, 0).getDate()
     const to = `${year}-${pad(month + 1)}-${pad(last)}`
-    try { setItems(await api(`/api/checkins?from=${from}&to=${to}`)) }
-    catch (err) { setError(err.message) }
+    try {
+      const nextItems = await api(`/api/checkins?from=${from}&to=${to}`)
+      setItems(nextItems)
+      const selectedItem = nextItems.find((item) => item.date === selected)
+      setStatus(selectedItem?.status || 'SUCCESS')
+      setMemo(selectedItem?.memo || '')
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   useEffect(() => { load() }, [year, month])

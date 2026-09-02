@@ -7,17 +7,20 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.View;
+import android.view.WindowInsets;
 import android.webkit.CookieManager;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
     private static final String APP_HOST = "golden-daughter.kro.kr";
     private static final String APP_URL = "https://golden-daughter.kro.kr/";
-    private static final String APP_USER_AGENT = "GoldenDaughterApp/1.0.3";
+    private static final String APP_USER_AGENT = "GoldenDaughterApp/1.0.4";
     private WebView webView;
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -27,10 +30,49 @@ public class MainActivity extends Activity {
 
         getWindow().setStatusBarColor(Color.rgb(15, 15, 18));
         getWindow().setNavigationBarColor(Color.rgb(15, 15, 18));
+        getWindow().getDecorView().setSystemUiVisibility(0);
+
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(Color.rgb(15, 15, 18));
 
         webView = new WebView(this);
         webView.setBackgroundColor(Color.rgb(15, 15, 18));
-        setContentView(webView);
+        root.addView(webView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+        setContentView(root);
+
+        // Android 15/16의 edge-to-edge 강제 적용에서도 웹 콘텐츠가
+        // 상태바/내비게이션바 밑으로 파고들지 않도록 시스템 바 영역만큼 여백을 준다.
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            int left;
+            int top;
+            int right;
+            int bottom;
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
+                left = bars.left;
+                top = bars.top;
+                right = bars.right;
+                bottom = bars.bottom;
+            } else {
+                left = insets.getSystemWindowInsetLeft();
+                top = insets.getSystemWindowInsetTop();
+                right = insets.getSystemWindowInsetRight();
+                bottom = insets.getSystemWindowInsetBottom();
+            }
+
+            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) webView.getLayoutParams();
+            if (params.leftMargin != left || params.topMargin != top
+                    || params.rightMargin != right || params.bottomMargin != bottom) {
+                params.setMargins(left, top, right, bottom);
+                webView.setLayoutParams(params);
+            }
+            return insets;
+        });
+        root.requestApplyInsets();
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
