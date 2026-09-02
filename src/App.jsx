@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, apiUrl, tokenStore } from './api.js'
+import PwaInstallPrompt from './PwaInstallPrompt.jsx'
 
 const pad = (n) => String(n).padStart(2, '0')
 const todayString = () => {
@@ -39,9 +40,12 @@ export default function App() {
     setMe(null)
   }
 
-  if (loading) return <CenteredMessage text="기록을 불러오는 중..." />
-  if (!token) return <AuthScreen onAuth={onAuth} />
-  return <Dashboard me={me} logout={logout} />
+  let screen
+  if (loading) screen = <CenteredMessage text="기록을 불러오는 중..." />
+  else if (!token) screen = <AuthScreen onAuth={onAuth} />
+  else screen = <Dashboard me={me} logout={logout} />
+
+  return <><PwaInstallPrompt />{screen}</>
 }
 
 function AuthScreen({ onAuth }) {
@@ -73,7 +77,7 @@ function AuthScreen({ onAuth }) {
         <div className="brand-mark">GD</div>
         <p className="eyebrow">GOLDEN DAUGHTER</p>
         <h1>오늘의 기록을 지키자.</h1>
-        <p className="muted">평소에는 기록을 보고, 위기에는 바로 버튼을 누르세요.</p>
+        <p className="muted">기록을 확인하고 초월 말머리 글을 한 편씩 읽어보세요.</p>
 
         <form onSubmit={submit} className="stack gap-md">
           <label>이메일<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
@@ -125,7 +129,6 @@ function HomePage() {
   const [quote, setQuote] = useState(null)
   const [tick, setTick] = useState(Date.now())
   const [showStart, setShowStart] = useState(false)
-  const [showCrisis, setShowCrisis] = useState(false)
   const [error, setError] = useState('')
 
   const load = async () => {
@@ -133,6 +136,14 @@ function HomePage() {
       const [s, q] = await Promise.all([api('/api/streak'), api('/api/motivation/quote')])
       setStreak(s)
       setQuote(q)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const anotherPost = async () => {
+    try {
+      setQuote(await api('/api/motivation/quote'))
     } catch (err) {
       setError(err.message)
     }
@@ -174,19 +185,15 @@ function HomePage() {
 
       {quote && (
         <section className="quote-card">
-          <span className="quote-mark">“</span>
+          <p className="eyebrow">DCINSIDE · 초월</p>
           <h2>{quote.title}</h2>
-          <p>{quote.content}</p>
-          <button className="ghost small" onClick={() => api('/api/motivation/quote').then(setQuote)}>다른 문구</button>
+          {quote.content && <p>{quote.content}</p>}
+          {quote.dcPostNo && <p className="tiny muted">글 #{quote.dcPostNo}</p>}
+          <div className="button-grid">
+            {quote.url && <a className="primary link-button" href={quote.url} target="_blank" rel="noreferrer">원문 보기</a>}
+            <button className="ghost" onClick={anotherPost}>다른 초월글</button>
+          </div>
         </section>
-      )}
-
-      {streak?.active && (
-        <button className="crisis-button" onClick={() => setShowCrisis(true)}>
-          <span>🚨</span>
-          <strong>지금 진짜 위험함</strong>
-          <small>누르면 바로 위기 모드로 들어갑니다</small>
-        </button>
       )}
 
       {streak?.active && (
@@ -198,7 +205,6 @@ function HomePage() {
       )}
 
       {showStart && <StartModal onClose={() => setShowStart(false)} onStarted={(s) => { setStreak(s); setShowStart(false) }} />}
-      {showCrisis && <CrisisModal day={day} onClose={() => setShowCrisis(false)} />}
     </div>
   )
 }
@@ -229,71 +235,6 @@ function StartModal({ onClose, onStarted }) {
     <label>시작 날짜/시간<input type="datetime-local" value={value} onChange={(e) => setValue(e.target.value)} /></label>
     {error && <p className="error">{error}</p>}
     <button className="primary" onClick={start} disabled={busy}>{busy ? '저장 중...' : '이 시간부터 시작'}</button>
-  </Modal>
-}
-
-function CrisisModal({ day, onClose }) {
-  const [intensity, setIntensity] = useState(8)
-  const [post, setPost] = useState(null)
-  const [busy, setBusy] = useState(false)
-  const [seconds, setSeconds] = useState(600)
-  const [running, setRunning] = useState(false)
-  const [helped, setHelped] = useState(false)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    if (!running || seconds <= 0) return
-    const id = setInterval(() => setSeconds((s) => Math.max(0, s - 1)), 1000)
-    return () => clearInterval(id)
-  }, [running, seconds])
-
-  const enter = async () => {
-    setBusy(true)
-    setError('')
-    try {
-      const result = await api('/api/crisis', { method: 'POST', body: JSON.stringify({ intensity }) })
-      setPost(result.postId ? { id: result.postId, title: result.postTitle, url: result.postUrl } : null)
-      setRunning(true)
-    } catch (err) { setError(err.message) }
-    finally { setBusy(false) }
-  }
-
-  const another = async () => {
-    const p = await api('/api/motivation/random')
-    setPost(p)
-    setHelped(false)
-  }
-
-  const helpful = async () => {
-    if (!post?.id) return
-    await api(`/api/motivation/${post.id}/helpful`, { method: 'POST' })
-    setHelped(true)
-  }
-
-  return <Modal onClose={onClose} crisis>
-    <p className="eyebrow danger-text">CRISIS MODE</p>
-    <h2>DAY {day}. 여기서 끝내지 말자.</h2>
-
-    {!post ? <>
-      <p className="muted">현재 충동 강도를 기록하고 바로 추천글 하나를 띄웁니다.</p>
-      <div className="intensity-value">{intensity}<span>/10</span></div>
-      <input className="range" type="range" min="1" max="10" value={intensity} onChange={(e) => setIntensity(Number(e.target.value))} />
-      {error && <p className="error">{error}</p>}
-      <button className="crisis-action" onClick={enter} disabled={busy}>{busy ? '불러오는 중...' : '추천글 바로 보기'}</button>
-    </> : <>
-      <div className="survive-timer">{pad(Math.floor(seconds / 60))}:{pad(seconds % 60)}</div>
-      <p className="muted">10분만 다른 행동을 하면서 버텨보세요.</p>
-      <article className="post-card">
-        <p className="eyebrow">RANDOM RECOMMENDATION</p>
-        <h3>{post.title}</h3>
-        {post.url && <a className="primary link-button" href={post.url} target="_blank" rel="noreferrer">전체 글 열기</a>}
-      </article>
-      <div className="button-grid">
-        <button className={helped ? 'ghost success' : 'ghost'} onClick={helpful}>{helped ? '✓ 도움됨 기록' : '👍 도움됨'}</button>
-        <button className="ghost" onClick={another}>🔄 다른 글</button>
-      </div>
-      <button className="text-button" onClick={() => setRunning((v) => !v)}>{running ? '타이머 잠시 멈춤' : '타이머 계속'}</button>
-    </>}
   </Modal>
 }
 
@@ -371,23 +312,19 @@ function StatisticsPage() {
   }, [])
 
   return <div className="stack gap-lg">
-    <section className="section-heading"><p className="eyebrow">MY PATTERN</p><h1>누적 통계</h1></section>
+    <section className="section-heading"><p className="eyebrow">MY RECORD</p><h1>누적 통계</h1></section>
     {error && <p className="error card">{error}</p>}
     {!stats ? <CenteredMessage text="통계를 계산하는 중..." inline /> : <>
       <div className="stats-grid">
         <StatCard label="현재 기록" value={`DAY ${stats.currentDay}`} />
         <StatCard label="최고 기록" value={`DAY ${stats.bestDay}`} />
-        <StatCard label="위기 발생" value={`${stats.crisisCount}회`} />
-        <StatCard label="도움됨" value={`${stats.helpfulClicks}회`} />
+        <StatCard label="성공 체크인" value={`${stats.successCheckIns}회`} />
+        <StatCard label="실패 체크인" value={`${stats.failedCheckIns}회`} />
       </div>
       <section className="card">
-        <p className="eyebrow">DANGER TIME</p>
-        <h2>{stats.mostDangerousHour == null ? '아직 데이터 부족' : `${pad(stats.mostDangerousHour)}:00 ~ ${pad((stats.mostDangerousHour + 1) % 24)}:00`}</h2>
-        <p className="muted">위기 버튼을 누른 기록을 기준으로 가장 빈도가 높은 시간대입니다.</p>
-      </section>
-      <section className="card stat-lines">
-        <div><span>성공 체크인</span><strong>{stats.successCheckIns}</strong></div>
-        <div><span>실패 체크인</span><strong>{stats.failedCheckIns}</strong></div>
+        <p className="eyebrow">KEEP GOING</p>
+        <h2>오늘 하루의 기록을 계속 쌓아가세요.</h2>
+        <p className="muted">위기 상황은 캘린더의 “위기 있었음” 체크인으로 남길 수 있습니다.</p>
       </section>
     </>}
   </div>
@@ -397,8 +334,8 @@ function StatCard({ label, value }) {
   return <section className="stat-card"><span>{label}</span><strong>{value}</strong></section>
 }
 
-function Modal({ children, onClose, crisis = false }) {
-  return <div className={crisis ? 'modal-backdrop crisis-bg' : 'modal-backdrop'} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+function Modal({ children, onClose }) {
+  return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
     <section className="modal-card">
       <button className="modal-close" onClick={onClose}>×</button>
       <div className="stack gap-md">{children}</div>

@@ -7,20 +7,26 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg'],
+      includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png'],
       manifest: {
         name: 'GoldenDaughter',
         short_name: 'GoldenDaughter',
-        description: '금딸 기록 및 위기 대응 앱',
+        description: '금딸 기록과 초월 말머리 동기부여 글을 제공하는 앱',
         theme_color: '#0f0f12',
         background_color: '#0f0f12',
         display: 'standalone',
         start_url: '/',
         icons: [
           {
-            src: '/icon.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
+            src: '/icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any maskable'
+          },
+          {
+            src: '/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
             purpose: 'any maskable'
           }
         ]
