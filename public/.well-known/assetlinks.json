@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "kr.kr0.goldendaughter",
+    "sha256_cert_fingerprints": ["98:3F:11:EE:EE:71:28:95:B1:93:9D:7D:CE:66:4D:CD:E3:D5:0E:55:D8:DB:F5:D6:08:D4:9D:76:3B:75:55:7C"]
+  }
+}]
