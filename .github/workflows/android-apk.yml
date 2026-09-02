@@ -9,6 +9,10 @@ on:
       - 'src/PwaInstallPrompt.jsx'
   workflow_dispatch:
 
+concurrency:
+  group: goldendaughter-android-apk
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -96,6 +100,7 @@ jobs:
           if git diff --cached --quiet; then
             echo 'No generated files changed.'
           else
-            git commit -m 'build: publish Android APK [skip ci]'
+            git commit -m 'build: Android APK 배포 [skip ci]'
+            git pull --rebase origin main
             git push
           fi
