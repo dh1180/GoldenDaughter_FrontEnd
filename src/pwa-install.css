@@ -63,7 +63,11 @@
   background: rgba(217, 180, 91, 0.1);
   color: #ddd6c4;
   font-size: 0.9rem;
-  line-height: 1.5;
+  line-height: 1.7;
+}
+
+.install-guide strong {
+  color: #f5e1a4;
 }
 
 .install-actions {
@@ -71,6 +75,10 @@
   grid-template-columns: 1fr 1.4fr;
   gap: 10px;
   margin-top: 18px;
+}
+
+.install-actions.single-action {
+  grid-template-columns: 1fr;
 }
 
 .install-actions button {
