@@ -15,8 +15,8 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
-    private static final String APP_HOST = "golden-daughter.kr0.kr";
-    private static final String APP_URL = "https://golden-daughter.kr0.kr/";
+    private static final String APP_HOST = "golden-daughter.kro.kr";
+    private static final String APP_URL = "https://golden-daughter.kro.kr/";
     private WebView webView;
 
     @SuppressLint("SetJavaScriptEnabled")
