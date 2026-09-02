@@ -1,0 +1,101 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android-app/**'
+      - '.github/workflows/android-apk.yml'
+      - 'src/PwaInstallPrompt.jsx'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 16 SDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Restore Android signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: goldendaughter-android-signing-v1
+
+      - name: Create signing key if missing
+        run: |
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore ~/.android/debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname 'CN=GoldenDaughter Android,O=GoldenDaughter,C=KR'
+          fi
+
+      - name: Build signed APK
+        run: gradle -p android-app :app:assembleRelease --no-daemon
+
+      - name: Publish APK and Digital Asset Links
+        shell: bash
+        run: |
+          cp android-app/app/build/outputs/apk/release/app-release.apk public/GoldenDaughter.apk
+          mkdir -p public/.well-known
+          FINGERPRINT=$(keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android | sed -n 's/^[[:space:]]*SHA256: //p' | head -n 1)
+          if [ -z "$FINGERPRINT" ]; then
+            echo 'Could not read signing certificate fingerprint.' >&2
+            exit 1
+          fi
+          cat > public/.well-known/assetlinks.json <<EOF
+          [{
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+              "namespace": "android_app",
+              "package_name": "kr.kr0.goldendaughter",
+              "sha256_cert_fingerprints": ["$FINGERPRINT"]
+            }
+          }]
+          EOF
+          echo "Android signing SHA-256: $FINGERPRINT"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GoldenDaughter-Android
+          path: public/GoldenDaughter.apk
+
+      - name: Commit downloadable APK
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add public/GoldenDaughter.apk public/.well-known/assetlinks.json
+          if git diff --cached --quiet; then
+            echo 'No generated files changed.'
+          else
+            git commit -m 'build: publish Android APK [skip ci]'
+            git push
+          fi
