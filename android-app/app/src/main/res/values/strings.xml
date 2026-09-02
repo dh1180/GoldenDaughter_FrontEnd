@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">GoldenDaughter</string>
-    <string name="launch_url">https://golden-daughter.kr0.kr/</string>
-    <string name="asset_statements" translatable="false">[{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"web","site":"https://golden-daughter.kr0.kr"}}]</string>
+    <string name="launch_url">https://golden-daughter.kro.kr/</string>
+    <string name="asset_statements" translatable="false">[{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"web","site":"https://golden-daughter.kro.kr"}}]</string>
 </resources>
