@@ -108,12 +108,14 @@ function Dashboard({ me, logout }) {
       <main className="content">
         {tab === 'home' && <HomePage />}
         {tab === 'calendar' && <CalendarPage />}
+        {tab === 'ranking' && <RankingPage />}
         {tab === 'stats' && <StatisticsPage />}
       </main>
 
       <nav className="bottom-nav">
         <NavButton active={tab === 'home'} onClick={() => setTab('home')} icon="●" label="홈" />
         <NavButton active={tab === 'calendar'} onClick={() => setTab('calendar')} icon="□" label="기록" />
+        <NavButton active={tab === 'ranking'} onClick={() => setTab('ranking')} icon="♛" label="순위" />
         <NavButton active={tab === 'stats'} onClick={() => setTab('stats')} icon="▥" label="통계" />
       </nav>
     </div>
@@ -307,6 +309,87 @@ function CalendarPage() {
       {error && <p className="error">{error}</p>}
       <button className="primary" onClick={save}>체크인 저장</button>
     </section>
+  </div>
+}
+
+function RankingPage() {
+  const [ranking, setRanking] = useState(null)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const load = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      setRanking(await api('/api/rankings'))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  useEffect(() => { load() }, [])
+
+  const medal = (rank) => rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`
+
+  return <div className="stack gap-lg ranking-page">
+    <section className="section-heading ranking-heading">
+      <div>
+        <p className="eyebrow">GLOBAL STREAK</p>
+        <h1>금딸 순위</h1>
+        <p className="muted ranking-description">현재 연속 기록이 긴 순서입니다. 닉네임만 공개됩니다.</p>
+      </div>
+      <button className="ghost small ranking-refresh" onClick={load} disabled={busy}>{busy ? '갱신 중' : '새로고침'}</button>
+    </section>
+
+    {error && <p className="error card">{error}</p>}
+    {!ranking ? <CenteredMessage text="순위를 불러오는 중..." inline /> : <>
+      <section className="ranking-summary">
+        <div>
+          <span>내 순위</span>
+          <strong>{ranking.myRank ? `${ranking.myRank}위` : '-'}</strong>
+        </div>
+        <div>
+          <span>현재 참여자</span>
+          <strong>{ranking.totalUsers}명</strong>
+        </div>
+      </section>
+
+      {ranking.myEntry ? (
+        <section className="my-ranking-card">
+          <div className="rank-position">#{ranking.myEntry.rank}</div>
+          <div className="rank-user">
+            <span className="rank-name">{ranking.myEntry.nickname} <em>나</em></span>
+            <span className="rank-time">{formatElapsed(ranking.myEntry.elapsedSeconds)}</span>
+          </div>
+          <strong className="rank-day">DAY {ranking.myEntry.currentDay}</strong>
+        </section>
+      ) : (
+        <section className="card">
+          <p className="muted ranking-empty">현재 진행 중인 기록이 없어 순위에 참여하지 않고 있습니다.</p>
+        </section>
+      )}
+
+      <section className="ranking-list-card">
+        <div className="ranking-list-head">
+          <strong>TOP 100</strong>
+          <span>{ranking.rankings.length}명 표시</span>
+        </div>
+        <div className="ranking-list">
+          {ranking.rankings.length === 0 ? <p className="muted ranking-empty">아직 순위에 참여한 사용자가 없습니다.</p> : ranking.rankings.map((entry) => (
+            <div className={entry.me ? 'ranking-row me' : 'ranking-row'} key={`${entry.rank}-${entry.nickname}`}>
+              <div className={`rank-badge rank-${entry.rank <= 3 ? entry.rank : 'normal'}`}>{medal(entry.rank)}</div>
+              <div className="rank-user">
+                <span className="rank-name">{entry.nickname}{entry.me && <em>나</em>}</span>
+                <span className="rank-time">{formatElapsed(entry.elapsedSeconds)}</span>
+              </div>
+              <strong className="rank-day">DAY {entry.currentDay}</strong>
+            </div>
+          ))}
+        </div>
+      </section>
+    </>}
   </div>
 }
 
