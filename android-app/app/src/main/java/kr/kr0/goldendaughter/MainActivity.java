@@ -19,7 +19,7 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
     private static final String APP_HOST = "golden-daughter.kro.kr";
     private static final String APP_URL = "https://golden-daughter.kro.kr/";
-    private static final String APP_USER_AGENT = "GoldenDaughterApp/1.0.5";
+    private static final String APP_USER_AGENT = "GoldenDaughterApp/1.0.6";
     private WebView webView;
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -77,6 +77,7 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setUserAgentString(settings.getUserAgentString() + " " + APP_USER_AGENT);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
@@ -101,11 +102,10 @@ public class MainActivity extends Activity {
             }
         });
 
-        if (savedInstanceState == null) {
-            webView.loadUrl(APP_URL);
-        } else {
-            webView.restoreState(savedInstanceState);
-        }
+        // WebView가 이전 화면 상태나 HTML/JS 캐시를 복원하지 않고
+        // 앱을 새로 열 때마다 현재 배포된 프론트를 받아오도록 한다.
+        webView.clearCache(true);
+        webView.loadUrl(APP_URL + "?refresh=" + System.currentTimeMillis());
     }
 
     private boolean handleUrl(Uri uri) {
@@ -127,7 +127,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
-        webView.saveState(outState);
+        // 오래된 웹 화면 상태를 저장/복원하지 않는다.
         super.onSaveInstanceState(outState);
     }
 
