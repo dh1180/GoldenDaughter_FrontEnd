@@ -17,6 +17,7 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
     private static final String APP_HOST = "golden-daughter.kro.kr";
     private static final String APP_URL = "https://golden-daughter.kro.kr/";
+    private static final String APP_USER_AGENT = "GoldenDaughterApp/1.0.3";
     private WebView webView;
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -38,6 +39,7 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
+        settings.setUserAgentString(settings.getUserAgentString() + " " + APP_USER_AGENT);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         }

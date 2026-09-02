@@ -14,11 +14,15 @@ export default function PwaInstallPrompt() {
   const [isAndroid, setIsAndroid] = useState(false)
   const [showApkGuide, setShowApkGuide] = useState(false)
 
+  const ua = window.navigator.userAgent
+  const isNativeApp = /GoldenDaughterApp\//i.test(ua) || (/android/i.test(ua) && /;\s*wv\)/i.test(ua))
+
   useEffect(() => {
+    if (isNativeApp) return
+
     const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
     if (standalone) return
 
-    const ua = window.navigator.userAgent
     const ios = /iphone|ipad|ipod/i.test(ua)
     const android = /android/i.test(ua)
     setIsIos(ios)
@@ -59,7 +63,7 @@ export default function PwaInstallPrompt() {
       window.removeEventListener('beforeinstallprompt', beforeInstall)
       window.removeEventListener('appinstalled', installed)
     }
-  }, [])
+  }, [isNativeApp, ua])
 
   const close = () => {
     localStorage.setItem(DISMISS_KEY, String(Date.now()))
@@ -102,6 +106,8 @@ export default function PwaInstallPrompt() {
     if (choice.outcome === 'accepted') setVisible(false)
     else setManual(true)
   }
+
+  if (isNativeApp) return null
 
   if (showApkGuide) {
     return (
