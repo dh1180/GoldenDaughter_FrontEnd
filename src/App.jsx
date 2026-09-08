@@ -1,6 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
-import { api, apiUrl, tokenStore } from './api.js'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { api, tokenStore } from './api.js'
 import PwaInstallPrompt from './PwaInstallPrompt.jsx'
+import {
+  exportBackupJson,
+  importBackupJson,
+  importLegacyData,
+  localStatistics,
+  markMigrationDone,
+  migrationDone,
+  readLocalState,
+  resetLocalStreak,
+  saveLocalCheckin,
+  startLocalStreak,
+} from './localData.js'
 
 const pad = (n) => String(n).padStart(2, '0')
 const todayString = () => {
@@ -11,111 +23,80 @@ const localDateTimeValue = () => {
   const d = new Date()
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
+const DC_LIST_URL = 'https://gall.dcinside.com/mgallery/board/lists/?id=hyunjatime&sort_type=N&search_head=190&page=1'
 
 export default function App() {
-  const [token, setToken] = useState(tokenStore.get())
-  const [me, setMe] = useState(null)
-  const [loading, setLoading] = useState(Boolean(token))
+  const [ready, setReady] = useState(false)
+  const [migrationNotice, setMigrationNotice] = useState('')
 
   useEffect(() => {
-    if (!token) return
-    api('/api/users/me')
-      .then(setMe)
-      .catch(() => {
+    const migrate = async () => {
+      if (migrationDone()) {
+        setReady(true)
+        return
+      }
+
+      const token = tokenStore.get()
+      if (!token) {
+        markMigrationDone()
+        setReady(true)
+        return
+      }
+
+      try {
+        setMigrationNotice('기존 서버 기록을 이 휴대폰으로 옮기는 중...')
+        const [me, streak, stats, checkins] = await Promise.all([
+          api('/api/users/me'),
+          api('/api/streak'),
+          api('/api/statistics'),
+          api('/api/checkins?from=2020-01-01&to=2100-12-31'),
+        ])
+        importLegacyData({ me, streak, stats, checkins })
+        setMigrationNotice('기존 서버 기록을 로컬 저장소로 옮겼습니다.')
         tokenStore.clear()
-        setToken(null)
-      })
-      .finally(() => setLoading(false))
-  }, [token])
-
-  const onAuth = (result) => {
-    tokenStore.set(result.token)
-    setToken(result.token)
-    setMe({ id: result.userId, email: result.email, nickname: result.nickname, createdAt: result.createdAt })
-  }
-
-  const logout = () => {
-    tokenStore.clear()
-    setToken(null)
-    setMe(null)
-  }
-
-  let screen
-  if (loading) screen = <CenteredMessage text="기록을 불러오는 중..." />
-  else if (!token) screen = <AuthScreen onAuth={onAuth} />
-  else screen = <Dashboard me={me} logout={logout} />
-
-  return <><PwaInstallPrompt />{screen}</>
-}
-
-function AuthScreen({ onAuth }) {
-  const [mode, setMode] = useState('login')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [nickname, setNickname] = useState('')
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  const submit = async (e) => {
-    e.preventDefault()
-    setError('')
-    setBusy(true)
-    try {
-      const body = mode === 'signup' ? { email, password, nickname } : { email, password }
-      const result = await api(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(body) })
-      onAuth(result)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusy(false)
+      } catch (err) {
+        setMigrationNotice(`기존 서버 기록 자동 이관 실패: ${err.message}`)
+      } finally {
+        setReady(true)
+      }
     }
-  }
+    migrate()
+  }, [])
 
-  return (
-    <main className="auth-shell">
-      <section className="auth-card">
-        <div className="brand-mark">GD</div>
-        <p className="eyebrow">GOLDEN DAUGHTER</p>
-        <h1>오늘의 기록을 지키자.</h1>
-        <p className="muted">기록을 확인하고 초월 말머리 글을 한 편씩 읽어보세요.</p>
-
-        <form onSubmit={submit} className="stack gap-md">
-          <label>이메일<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
-          {mode === 'signup' && <label>닉네임<input value={nickname} onChange={(e) => setNickname(e.target.value)} maxLength="40" required /></label>}
-          <label>비밀번호<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength="8" required /></label>
-          {error && <p className="error">{error}</p>}
-          <button className="primary" disabled={busy}>{busy ? '처리 중...' : mode === 'login' ? '로그인' : '회원가입'}</button>
-        </form>
-
-        <button className="text-button" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}>
-          {mode === 'login' ? '처음이라면 회원가입' : '이미 계정이 있다면 로그인'}
-        </button>
-        <p className="tiny muted api-note">API: {apiUrl()}</p>
-      </section>
-    </main>
-  )
+  return <><PwaInstallPrompt />{ready ? <Dashboard migrationNotice={migrationNotice} /> : <CenteredMessage text={migrationNotice || '로컬 기록을 준비하는 중...'} />}</>
 }
 
-function Dashboard({ me, logout }) {
+function Dashboard({ migrationNotice }) {
   const [tab, setTab] = useState('home')
+  const [version, setVersion] = useState(0)
+  const state = useMemo(() => readLocalState(), [version])
+
+  useEffect(() => {
+    const refresh = () => setVersion((v) => v + 1)
+    window.addEventListener('gd-local-data-changed', refresh)
+    return () => window.removeEventListener('gd-local-data-changed', refresh)
+  }, [])
+
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div><p className="eyebrow">GOLDEN DAUGHTER</p><strong>{me?.nickname || '사용자'}</strong></div>
-        <button className="ghost small" onClick={logout}>로그아웃</button>
+        <div>
+          <p className="eyebrow">GOLDEN DAUGHTER · LOCAL</p>
+          <strong>{state.profile?.nickname || '나의 기록'}</strong>
+        </div>
+        <span className="tiny muted">서버 없음</span>
       </header>
 
       <main className="content">
+        {migrationNotice && <p className="card tiny muted">{migrationNotice}</p>}
         {tab === 'home' && <HomePage />}
         {tab === 'calendar' && <CalendarPage />}
-        {tab === 'ranking' && <RankingPage />}
         {tab === 'stats' && <StatisticsPage />}
       </main>
 
       <nav className="bottom-nav">
         <NavButton active={tab === 'home'} onClick={() => setTab('home')} icon="●" label="홈" />
         <NavButton active={tab === 'calendar'} onClick={() => setTab('calendar')} icon="□" label="기록" />
-        <NavButton active={tab === 'ranking'} onClick={() => setTab('ranking')} icon="♛" label="순위" />
         <NavButton active={tab === 'stats'} onClick={() => setTab('stats')} icon="▥" label="통계" />
       </nav>
     </div>
@@ -127,42 +108,49 @@ function NavButton({ active, onClick, icon, label }) {
 }
 
 function HomePage() {
-  const [streak, setStreak] = useState(null)
+  const [streak, setStreak] = useState(() => readLocalState().currentStreak)
   const [quote, setQuote] = useState(null)
+  const [posts, setPosts] = useState([])
   const [tick, setTick] = useState(Date.now())
   const [showStart, setShowStart] = useState(false)
   const [error, setError] = useState('')
 
-  const load = async () => {
-    try {
-      const [s, q] = await Promise.all([api('/api/streak'), api('/api/motivation/quote')])
-      setStreak(s)
-      setQuote(q)
-    } catch (err) {
-      setError(err.message)
+  const choosePost = (list) => {
+    if (!list?.length) {
+      setQuote({ title: '초월 글 모음 바로가기', content: 'GitHub Actions가 초월 글 목록을 갱신합니다.', url: DC_LIST_URL })
+      return
     }
+    setQuote(list[Math.floor(Math.random() * list.length)])
   }
 
-  const anotherPost = async () => {
-    try {
-      setQuote(await api('/api/motivation/quote'))
-    } catch (err) {
-      setError(err.message)
-    }
-  }
+  useEffect(() => {
+    fetch(`/transcendence-posts.json?refresh=${Date.now()}`, { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() : [])
+      .then((list) => {
+        const safe = Array.isArray(list) ? list : []
+        setPosts(safe)
+        choosePost(safe)
+      })
+      .catch(() => choosePost([]))
+  }, [])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    const refresh = () => setStreak(readLocalState().currentStreak)
+    window.addEventListener('gd-local-data-changed', refresh)
+    return () => window.removeEventListener('gd-local-data-changed', refresh)
+  }, [])
+
   useEffect(() => {
     const id = setInterval(() => setTick(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
 
   const elapsed = useMemo(() => {
-    if (!streak?.active || !streak.startedAt) return 0
+    if (!streak?.startedAt) return 0
     return Math.max(0, Math.floor((tick - new Date(streak.startedAt).getTime()) / 1000))
   }, [streak, tick])
 
-  const day = streak?.active ? Math.floor(elapsed / 86400) + 1 : 0
+  const day = streak?.startedAt ? Math.floor(elapsed / 86400) + 1 : 0
   const nextGoal = [7, 14, 30, 60, 90, 180, 365].find((goal) => goal > day) || day + 30
 
   return (
@@ -170,7 +158,7 @@ function HomePage() {
       {error && <p className="error card">{error}</p>}
       <section className="hero-card">
         <p className="eyebrow">CURRENT STREAK</p>
-        {streak?.active ? (
+        {streak?.startedAt ? (
           <>
             <div className="day-number">DAY {day}</div>
             <div className="timer">{formatElapsed(elapsed)}</div>
@@ -193,16 +181,16 @@ function HomePage() {
           {quote.dcPostNo && <p className="tiny muted">글 #{quote.dcPostNo}</p>}
           <div className="button-grid">
             {quote.url && <a className="primary link-button" href={quote.url} target="_blank" rel="noreferrer">원문 보기</a>}
-            <button className="ghost" onClick={anotherPost}>다른 초월글</button>
+            <button className="ghost" onClick={() => choosePost(posts)}>다른 초월글</button>
           </div>
         </section>
       )}
 
-      {streak?.active && (
-        <button className="danger-link" onClick={async () => {
-          if (!confirm('현재 기록을 종료하고 DAY 1부터 다시 시작할까요? 이전 기록은 보존됩니다.')) return
-          const result = await api('/api/streak/reset', { method: 'POST' })
-          setStreak(result)
+      {streak?.startedAt && (
+        <button className="danger-link" onClick={() => {
+          if (!confirm('현재 기록을 종료하고 DAY 1부터 다시 시작할까요? 이전 기록은 이 기기에 보존됩니다.')) return
+          const state = resetLocalStreak()
+          setStreak(state.currentStreak)
         }}>기록 리셋</button>
       )}
 
@@ -214,75 +202,68 @@ function HomePage() {
 function StartModal({ onClose, onStarted }) {
   const [value, setValue] = useState(localDateTimeValue())
   const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
 
-  const start = async () => {
-    setBusy(true)
+  const start = () => {
     setError('')
-    try {
-      const result = await api('/api/streak/start', {
-        method: 'POST',
-        body: JSON.stringify({ startedAt: new Date(value).toISOString() }),
-      })
-      onStarted(result)
-    } catch (err) {
-      setError(err.message)
-    } finally { setBusy(false) }
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) {
+      setError('시작 날짜와 시간을 확인해주세요.')
+      return
+    }
+    if (date.getTime() > Date.now()) {
+      setError('미래 시간으로는 시작할 수 없습니다.')
+      return
+    }
+    const state = startLocalStreak(date.toISOString())
+    onStarted(state.currentStreak)
   }
 
   return <Modal onClose={onClose}>
     <p className="eyebrow">START STREAK</p>
     <h2>언제부터 시작했나요?</h2>
-    <p className="muted">오늘이 아니라 이미 며칠째라면 실제 시작 시각을 넣으면 됩니다.</p>
+    <p className="muted">실제 시작 시각은 이 기기에만 저장됩니다.</p>
     <label>시작 날짜/시간<input type="datetime-local" value={value} onChange={(e) => setValue(e.target.value)} /></label>
     {error && <p className="error">{error}</p>}
-    <button className="primary" onClick={start} disabled={busy}>{busy ? '저장 중...' : '이 시간부터 시작'}</button>
+    <button className="primary" onClick={start}>이 시간부터 시작</button>
   </Modal>
 }
 
 function CalendarPage() {
   const now = new Date()
   const [cursor, setCursor] = useState(new Date(now.getFullYear(), now.getMonth(), 1))
-  const [items, setItems] = useState([])
+  const [items, setItems] = useState(() => Object.values(readLocalState().checkins))
   const [selected, setSelected] = useState(todayString())
   const [status, setStatus] = useState('SUCCESS')
   const [memo, setMemo] = useState('')
-  const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
 
   const year = cursor.getFullYear()
   const month = cursor.getMonth()
   const days = useMemo(() => calendarCells(year, month), [year, month])
   const byDate = useMemo(() => Object.fromEntries(items.map((item) => [item.date, item])), [items])
 
-  const load = async () => {
-    const from = `${year}-${pad(month + 1)}-01`
-    const last = new Date(year, month + 1, 0).getDate()
-    const to = `${year}-${pad(month + 1)}-${pad(last)}`
-    try {
-      const nextItems = await api(`/api/checkins?from=${from}&to=${to}`)
-      setItems(nextItems)
-      const selectedItem = nextItems.find((item) => item.date === selected)
-      setStatus(selectedItem?.status || 'SUCCESS')
-      setMemo(selectedItem?.memo || '')
-    } catch (err) {
-      setError(err.message)
-    }
+  const load = () => {
+    const nextItems = Object.values(readLocalState().checkins)
+    setItems(nextItems)
+    const selectedItem = nextItems.find((item) => item.date === selected)
+    setStatus(selectedItem?.status || 'SUCCESS')
+    setMemo(selectedItem?.memo || '')
   }
 
   useEffect(() => { load() }, [year, month])
 
   const selectDay = (date) => {
     setSelected(date)
+    setSaved(false)
     const item = byDate[date]
     setStatus(item?.status || 'SUCCESS')
     setMemo(item?.memo || '')
   }
 
-  const save = async () => {
-    try {
-      await api('/api/checkins', { method: 'POST', body: JSON.stringify({ date: selected, status, memo }) })
-      await load()
-    } catch (err) { setError(err.message) }
+  const save = () => {
+    saveLocalCheckin(selected, status, memo)
+    load()
+    setSaved(true)
   }
 
   return <div className="stack gap-lg">
@@ -303,120 +284,93 @@ function CalendarPage() {
     <section className="card stack gap-md">
       <h3>{selected} 체크인</h3>
       <div className="segmented">
-        {[['SUCCESS','성공'],['CRISIS','위기 있었음'],['FAILED','실패']].map(([value,label]) => <button key={value} className={status === value ? 'active' : ''} onClick={() => setStatus(value)}>{label}</button>)}
+        {[['SUCCESS','성공'],['CRISIS','위기 있었음'],['FAILED','실패']].map(([value,label]) => <button key={value} className={status === value ? 'active' : ''} onClick={() => { setStatus(value); setSaved(false) }}>{label}</button>)}
       </div>
-      <textarea rows="3" maxLength="500" placeholder="오늘 어땠는지 간단히 기록" value={memo} onChange={(e) => setMemo(e.target.value)} />
-      {error && <p className="error">{error}</p>}
+      <textarea rows="3" maxLength="500" placeholder="오늘 어땠는지 간단히 기록" value={memo} onChange={(e) => { setMemo(e.target.value); setSaved(false) }} />
+      {saved && <p className="tiny muted">이 기기에 저장했습니다.</p>}
       <button className="primary" onClick={save}>체크인 저장</button>
     </section>
   </div>
 }
 
-function RankingPage() {
-  const [ranking, setRanking] = useState(null)
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
+function StatisticsPage() {
+  const [stats, setStats] = useState(() => localStatistics())
+  const [state, setState] = useState(() => readLocalState())
+  const [message, setMessage] = useState('')
+  const fileRef = useRef(null)
 
-  const load = async () => {
-    setBusy(true)
-    setError('')
+  useEffect(() => {
+    const refresh = () => {
+      setStats(localStatistics())
+      setState(readLocalState())
+    }
+    window.addEventListener('gd-local-data-changed', refresh)
+    return () => window.removeEventListener('gd-local-data-changed', refresh)
+  }, [])
+
+  const downloadBackup = () => {
+    const blob = new Blob([exportBackupJson()], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `GoldenDaughter-backup-${todayString()}.json`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+    setMessage('백업 파일을 만들었습니다.')
+  }
+
+  const copyBackup = async () => {
     try {
-      setRanking(await api('/api/rankings'))
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusy(false)
+      await navigator.clipboard.writeText(exportBackupJson())
+      setMessage('백업 JSON을 클립보드에 복사했습니다.')
+    } catch {
+      setMessage('클립보드 복사에 실패했습니다. 브라우저 권한을 확인해주세요.')
     }
   }
 
-  useEffect(() => { load() }, [])
-
-  const medal = (rank) => rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`
-
-  return <div className="stack gap-lg ranking-page">
-    <section className="section-heading ranking-heading">
-      <div>
-        <p className="eyebrow">GLOBAL STREAK</p>
-        <h1>금딸 순위</h1>
-        <p className="muted ranking-description">현재 연속 기록이 긴 순서입니다. 닉네임만 공개됩니다.</p>
-      </div>
-      <button className="ghost small ranking-refresh" onClick={load} disabled={busy}>{busy ? '갱신 중' : '새로고침'}</button>
-    </section>
-
-    {error && <p className="error card">{error}</p>}
-    {!ranking ? <CenteredMessage text="순위를 불러오는 중..." inline /> : <>
-      <section className="ranking-summary">
-        <div>
-          <span>내 순위</span>
-          <strong>{ranking.myRank ? `${ranking.myRank}위` : '-'}</strong>
-        </div>
-        <div>
-          <span>현재 참여자</span>
-          <strong>{ranking.totalUsers}명</strong>
-        </div>
-      </section>
-
-      {ranking.myEntry ? (
-        <section className="my-ranking-card">
-          <div className="rank-position">#{ranking.myEntry.rank}</div>
-          <div className="rank-user">
-            <span className="rank-name">{ranking.myEntry.nickname} <em>나</em></span>
-            <span className="rank-time">{formatElapsed(ranking.myEntry.elapsedSeconds)}</span>
-          </div>
-          <strong className="rank-day">DAY {ranking.myEntry.currentDay}</strong>
-        </section>
-      ) : (
-        <section className="card">
-          <p className="muted ranking-empty">현재 진행 중인 기록이 없어 순위에 참여하지 않고 있습니다.</p>
-        </section>
-      )}
-
-      <section className="ranking-list-card">
-        <div className="ranking-list-head">
-          <strong>TOP 100</strong>
-          <span>{ranking.rankings.length}명 표시</span>
-        </div>
-        <div className="ranking-list">
-          {ranking.rankings.length === 0 ? <p className="muted ranking-empty">아직 순위에 참여한 사용자가 없습니다.</p> : ranking.rankings.map((entry) => (
-            <div className={entry.me ? 'ranking-row me' : 'ranking-row'} key={`${entry.rank}-${entry.nickname}`}>
-              <div className={`rank-badge rank-${entry.rank <= 3 ? entry.rank : 'normal'}`}>{medal(entry.rank)}</div>
-              <div className="rank-user">
-                <span className="rank-name">{entry.nickname}{entry.me && <em>나</em>}</span>
-                <span className="rank-time">{formatElapsed(entry.elapsedSeconds)}</span>
-              </div>
-              <strong className="rank-day">DAY {entry.currentDay}</strong>
-            </div>
-          ))}
-        </div>
-      </section>
-    </>}
-  </div>
-}
-
-function StatisticsPage() {
-  const [stats, setStats] = useState(null)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    api('/api/statistics').then(setStats).catch((err) => setError(err.message))
-  }, [])
+  const importFile = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    try {
+      importBackupJson(await file.text())
+      setMessage('백업을 복원했습니다.')
+    } catch (err) {
+      setMessage(err.message)
+    } finally {
+      event.target.value = ''
+    }
+  }
 
   return <div className="stack gap-lg">
     <section className="section-heading"><p className="eyebrow">MY RECORD</p><h1>누적 통계</h1></section>
-    {error && <p className="error card">{error}</p>}
-    {!stats ? <CenteredMessage text="통계를 계산하는 중..." inline /> : <>
-      <div className="stats-grid">
-        <StatCard label="현재 기록" value={`DAY ${stats.currentDay}`} />
-        <StatCard label="최고 기록" value={`DAY ${stats.bestDay}`} />
-        <StatCard label="성공 체크인" value={`${stats.successCheckIns}회`} />
-        <StatCard label="실패 체크인" value={`${stats.failedCheckIns}회`} />
+    <div className="stats-grid">
+      <StatCard label="현재 기록" value={`DAY ${stats.currentDay}`} />
+      <StatCard label="최고 기록" value={`DAY ${stats.bestDay}`} />
+      <StatCard label="성공 체크인" value={`${stats.successCheckIns}회`} />
+      <StatCard label="실패 체크인" value={`${stats.failedCheckIns}회`} />
+    </div>
+
+    <section className="card">
+      <p className="eyebrow">LOCAL STORAGE</p>
+      <h2>기록은 이 기기에만 저장됩니다.</h2>
+      <p className="muted">앱 데이터 삭제나 브라우저 데이터 초기화 전에 백업 파일을 만들어두세요.</p>
+      {state.migratedAt && <p className="tiny muted">서버 기록 이관: {new Date(state.migratedAt).toLocaleString()}</p>}
+      <div className="button-grid">
+        <button className="primary" onClick={downloadBackup}>백업 파일 저장</button>
+        <button className="ghost" onClick={copyBackup}>JSON 복사</button>
       </div>
-      <section className="card">
-        <p className="eyebrow">KEEP GOING</p>
-        <h2>오늘 하루의 기록을 계속 쌓아가세요.</h2>
-        <p className="muted">위기 상황은 캘린더의 “위기 있었음” 체크인으로 남길 수 있습니다.</p>
-      </section>
-    </>}
+      <button className="ghost" style={{ width: '100%', marginTop: 10 }} onClick={() => fileRef.current?.click()}>백업 파일 가져오기</button>
+      <input ref={fileRef} type="file" accept="application/json,.json" onChange={importFile} style={{ display: 'none' }} />
+      {message && <p className="tiny muted">{message}</p>}
+    </section>
+
+    <section className="card">
+      <p className="eyebrow">KEEP GOING</p>
+      <h2>오늘 하루의 기록을 계속 쌓아가세요.</h2>
+      <p className="muted">위기 상황은 캘린더의 “위기 있었음” 체크인으로 남길 수 있습니다.</p>
+    </section>
   </div>
 }
 

@@ -2,7 +2,6 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import './styles.css'
-import './ranking.css'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {

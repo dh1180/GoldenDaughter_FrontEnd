@@ -1,0 +1,49 @@
+name: Update DC Transcendence Posts
+
+on:
+  schedule:
+    - cron: '25 18 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/update_transcendence_posts.py'
+      - '.github/workflows/update-transcendence-posts.yml'
+
+concurrency:
+  group: goldendaughter-dc-posts
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  update-posts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install crawler dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Crawl transcendence posts
+        run: python scripts/update_transcendence_posts.py
+
+      - name: Commit updated post list
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add public/transcendence-posts.json
+          if git diff --cached --quiet; then
+            echo 'No post changes.'
+          else
+            git commit -m 'chore: 초월글 목록 자동 갱신'
+            git pull --rebase origin main
+            git push
+          fi
