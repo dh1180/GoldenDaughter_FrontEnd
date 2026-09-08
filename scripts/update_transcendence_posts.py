@@ -3,12 +3,11 @@ import json
 import re
 import time
 from pathlib import Path
-from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
 
-LIST_URL = "https://gall.dcinside.com/mgallery/board/lists/?id=hyunjatime&sort_type=N&search_head=190&page={}"
+LIST_URL = "https://gall.dcinside.com/mgallery/board/lists/?id=hyunjatime&sort_type=N&exception_mode=recommend&search_head=190&page={}"
 VIEW_BASE = "https://gall.dcinside.com/mgallery/board/view/?id=hyunjatime&no={}"
 OUTPUT = Path("public/transcendence-posts.json")
 HEADERS = {
@@ -65,7 +64,7 @@ def extract_post(row):
 
 
 def crawl_page(session, page):
-    response = session.get(LIST_URL.format(page), headers=HEADERS, timeout=20)
+    response = session.get(LIST_URL.format(page), headers=HEADERS, timeout=15)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
     rows = soup.select("tr.ub-content")
@@ -87,29 +86,28 @@ def main():
     merged = {int(item["dcPostNo"]): item for item in existing if item.get("dcPostNo")}
 
     session = requests.Session()
-    full_backfill = len(merged) == 0
-    max_pages = 500 if full_backfill else 5
-    empty_pages = 0
+    first_collection = len(merged) == 0
+    max_pages = 20 if first_collection else 5
+    consecutive_failures = 0
 
     for page in range(1, max_pages + 1):
         try:
             posts = crawl_page(session, page)
+            consecutive_failures = 0
         except Exception as exc:
+            consecutive_failures += 1
             print(f"page={page} failed: {exc}")
-            if full_backfill:
-                raise
-            break
+            if consecutive_failures >= 2:
+                break
+            continue
 
         print(f"page={page}, posts={len(posts)}")
         if not posts:
-            empty_pages += 1
-            if full_backfill or empty_pages >= 1:
-                break
-        else:
-            empty_pages = 0
-            for post in posts:
-                merged[post["dcPostNo"]] = post
-        time.sleep(0.4)
+            break
+
+        for post in posts:
+            merged[post["dcPostNo"]] = post
+        time.sleep(0.2)
 
     result = sorted(merged.values(), key=lambda item: int(item["dcPostNo"]), reverse=True)
     OUTPUT.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
