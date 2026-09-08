@@ -4,20 +4,18 @@
 
 # 🟡 GoldenDaughter
 
-### 금딸 기록 · 체크인 · 사용자 순위 · 동기부여 콘텐츠를 한곳에서
+### 금딸 기록 · 체크인 · 동기부여 콘텐츠를 한곳에서
 
 **현재 연속 기록을 실시간으로 확인하고,**  
-**하루 단위 체크인과 사용자 순위를 통해 꾸준한 기록을 이어갈 수 있도록 만든 모바일 중심 서비스입니다.**
+**하루 단위 체크인과 초월 글을 통해 꾸준한 기록을 이어갈 수 있도록 만든 개인용 앱입니다.**
 
 [![Website](https://img.shields.io/badge/Website-golden--daughter.kro.kr-D4AF37?style=for-the-badge&logo=googlechrome&logoColor=white)](https://golden-daughter.kro.kr)
 [![Android APK](https://img.shields.io/badge/Android-APK-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://golden-daughter.kro.kr/GoldenDaughter.apk)
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vite.dev/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.1-6DB33F?style=flat-square&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Vercel](https://img.shields.io/badge/Vercel-000000?style=flat-square&logo=vercel&logoColor=white)](https://vercel.com/)
-[![Railway](https://img.shields.io/badge/Railway-0B0D0E?style=flat-square&logo=railway&logoColor=white)](https://railway.com/)
+[![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)](https://github.com/features/actions)
 
 </div>
 
@@ -25,14 +23,13 @@
 
 ## 🚀 서비스 개요
 
-**GoldenDaughter**는 단순히 금딸 시작일만 저장하는 카운터 앱이 아닙니다.
+**GoldenDaughter**는 금딸 시작일만 저장하는 단순 DAY 카운터가 아니라, 현재 기록과 일일 체크인을 꾸준히 관리할 수 있도록 만든 개인용 기록 앱입니다.
 
-현재 기록이 얼마나 이어지고 있는지 실시간으로 확인하고, 날짜별로 **성공 / 위기 / 실패 체크인**을 남기며, 다른 사용자와 현재 기록을 비교할 수 있도록 구성했습니다.
+기존에는 Spring Boot + PostgreSQL + Railway 구조를 사용했지만, 실제 사용자가 본인 한 명인 상황에서 서버 유지비를 없애기 위해 **서버리스 로컬 저장 방식**으로 변경했습니다.
 
-또한 현자타임 갤러리의 `초월` 말머리 글을 백엔드에서 주기적으로 수집해 앱 안에서 랜덤으로 보여주도록 하여 **기록 + 동기부여 + 경쟁 요소**를 하나의 흐름으로 묶었습니다.
+현재 사용자 데이터는 서버가 아니라 **브라우저 또는 Android WebView의 localStorage에만 저장**됩니다.
 
-> 순위는 현재 진행 중인 streak의 실제 시작 시각을 기준으로 계산합니다.  
-> 랭킹에는 닉네임, DAY, 경과시간만 표시하며 이메일과 같은 계정 정보는 노출하지 않습니다.
+> 서버 비용은 없지만 앱 데이터 삭제, 브라우저 데이터 초기화, 기기 초기화 시 기록이 사라질 수 있으므로 백업 기능을 제공합니다.
 
 ### 🔗 주요 링크
 
@@ -40,7 +37,7 @@
 | --- | --- |
 | Web App | [golden-daughter.kro.kr](https://golden-daughter.kro.kr) |
 | Android APK | [GoldenDaughter.apk](https://golden-daughter.kro.kr/GoldenDaughter.apk) |
-| Backend Repository | [GoldenDaughter_BackEnd](https://github.com/dh1180/GoldenDaughter_BackEnd) |
+| Legacy Backend | [GoldenDaughter_BackEnd](https://github.com/dh1180/GoldenDaughter_BackEnd) |
 
 ---
 
@@ -53,7 +50,7 @@
 - 시작 시각 기준 경과시간 실시간 계산
 - 다음 목표 DAY 표시
 - 기록 리셋
-- 기록 리셋 시 이전 streak는 보존
+- 리셋된 이전 기록은 로컬 history에 보존
 
 ### 📅 일일 체크인
 
@@ -64,45 +61,30 @@
 - `FAILED` — 실패
 - 날짜별 메모 작성
 - 기존 체크인 수정
-- 탭 이동 후 다시 돌아와도 선택 날짜의 서버 기록 자동 동기화
-
-### ♛ 사용자 금딸 순위
-
-현재 진행 중인 사용자들의 streak를 비교해 순위를 제공합니다.
-
-- 실제 `startedAt`이 빠른 순서로 정렬
-- TOP 100 표시
-- 현재 참여 사용자 수 표시
-- 내 순위 별도 표시
-- 같은 DAY라도 실제 경과시간으로 순위 구분
-- 공개 정보는 닉네임 / DAY / 경과시간으로 제한
-
-```text
-1위  DAY 41  40일 12:30:18
-2위  DAY 41  40일 03:12:44
-3위  DAY 38  37일 21:05:31
-```
+- 모든 기록은 localStorage에 저장
 
 ### 🌌 DCInside `초월` 글
 
-현자타임 갤러리의 `초월` 말머리 글을 서버에서 수집해 동기부여 콘텐츠로 제공합니다.
-
-- 최신 페이지 주기적 확인
-- 과거 페이지 순차 Backfill
-- DB에 수집 상태 저장
-- 게시글 번호 기준 중복 방지
-- 앱에서 랜덤 글 노출
-- `다른 초월글`로 즉시 새 글 불러오기
-- DCInside 원문 바로가기
-
-과거 글은 한 번에 모든 페이지를 요청하지 않고 여러 번에 나누어 순차 수집합니다.
+상시 백엔드 서버 대신 **GitHub Actions가 현자타임 갤러리의 `초월` 말머리 글을 주기적으로 수집**합니다.
 
 ```text
-1회차  page 1  → page 20
-2회차  page 21 → page 40
-3회차  page 41 → page 60
-...
+DCInside
+   ↓
+GitHub Actions Crawler
+   ↓
+public/transcendence-posts.json
+   ↓
+Vercel
+   ↓
+GoldenDaughter
 ```
+
+- 최초 실행 시 과거 페이지 전체 Backfill
+- 이후 최신 페이지를 주기적으로 다시 확인
+- 게시글 번호 기준 중복 제거
+- JSON 파일을 정적 배포
+- 앱에서 랜덤 글 노출
+- 원문 바로가기
 
 ### 📊 개인 통계
 
@@ -111,9 +93,17 @@
 - 성공 체크인 수
 - 실패 체크인 수
 
+### 💾 백업 / 복원
+
+로컬 저장 방식의 데이터 유실에 대비해 백업 기능을 제공합니다.
+
+- JSON 백업 파일 저장
+- 백업 JSON 클립보드 복사
+- JSON 백업 파일 가져오기
+
 ### 📱 Android App
 
-웹과 별도의 UI를 다시 만드는 대신 **Native Android WebView Wrapper**를 사용해 동일한 React 앱을 Android에서 실행합니다.
+웹과 별도 UI를 다시 만드는 대신 **Native Android WebView Wrapper**로 동일한 React 앱을 Android에서 실행합니다.
 
 - Android WebView 기반
 - 내부 서비스 링크는 앱 내부에서 유지
@@ -127,48 +117,53 @@
 
 ---
 
-## 🧭 사용 흐름
-
-```mermaid
-graph TD
-    A["회원가입 / 로그인"] --> B["금딸 시작 시각 설정"]
-    B --> C["DAY / 경과시간 확인"]
-    C --> D["날짜별 체크인"]
-    C --> E["초월 글 확인"]
-    C --> F["사용자 순위 확인"]
-    D --> G["누적 통계"]
-```
-
----
-
 ## 🏗 Architecture
 
 ```mermaid
 graph LR
     U["User"] --> F["React + Vite"]
     A["Android WebView"] --> F
-    F -->|"JWT REST API"| B["Spring Boot"]
-    B --> S["Spring Security"]
-    B --> P[("PostgreSQL")]
-    C["Scheduled Jsoup Crawler"] --> D["DCInside"]
-    C --> P
+    F --> L[("localStorage")]
+    G["GitHub Actions Crawler"] --> D["DCInside"]
+    G --> J["transcendence-posts.json"]
+    J --> V["Vercel"]
+    V --> F
 ```
 
-### 인증 흐름
+### 이전 서버 구조와 비교
 
 ```text
-Client
-  ↓ Authorization: Bearer <JWT>
-Spring Security
-  ↓
-JWT 인증
-  ↓
-CurrentUserService
-  ↓
-사용자별 Streak / Check-in / Statistics 조회
+Before
+React / Android
+      ↓
+Spring Boot
+      ↓
+PostgreSQL
+      ↓
+Railway
+
+After
+React / Android
+      ↓
+localStorage
 ```
 
-사용자 ID를 요청 Body에서 직접 신뢰하지 않고, 서버가 JWT 인증 정보를 기준으로 현재 사용자를 결정합니다.
+회원가입, 로그인, JWT, 사용자 순위 기능은 개인용 로컬 앱 전환과 함께 제거했습니다.
+
+---
+
+## 🔄 Legacy Server Data Migration
+
+기존 Railway 서버에서 사용하던 기록이 있는 경우 새 로컬 버전을 처음 실행할 때 기존 JWT가 남아 있으면 자동으로 한 번 가져옵니다.
+
+이관 대상:
+
+- 닉네임
+- 현재 Streak 시작 시각
+- 날짜별 Check-in
+- 기존 최고 기록
+
+이관 완료 후 JWT는 삭제되며 이후 앱 사용에 Backend API가 필요하지 않습니다.
 
 ---
 
@@ -180,75 +175,41 @@ CurrentUserService
 | :---: | :---: | :---: | :---: |
 | React 19 | Vite 8 | JavaScript | CSS |
 
-### Backend
-
-| <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg" width="48" /> | <img src="https://cdn.simpleicons.org/springboot/6DB33F" width="48" /> | <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg" width="48" /> |
-| :---: | :---: | :---: |
-| Java 21 | Spring Boot 4.1.1 | PostgreSQL |
+### Storage & Content
 
 <p>
-  <img src="https://img.shields.io/badge/Spring%20Security-6DB33F?style=flat-square&logo=springsecurity&logoColor=white" alt="Spring Security" />
-  <img src="https://img.shields.io/badge/JWT-000000?style=flat-square&logo=jsonwebtokens&logoColor=white" alt="JWT" />
-  <img src="https://img.shields.io/badge/JPA%20%2F%20Hibernate-59666C?style=flat-square&logo=hibernate&logoColor=white" alt="JPA Hibernate" />
-  <img src="https://img.shields.io/badge/Jsoup-1.18.3-5C2D91?style=flat-square" alt="Jsoup" />
+  <img src="https://img.shields.io/badge/localStorage-Browser%20Storage-D4AF37?style=flat-square" alt="localStorage" />
+  <img src="https://img.shields.io/badge/DCInside-Crawler-3A3A3A?style=flat-square" alt="DCInside Crawler" />
+  <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" />
 </p>
-
-### Android
-
-| <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/android/android-original.svg" width="48" /> | <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg" width="48" /> |
-| :---: | :---: |
-| Android WebView | Java |
-
-- compileSdk `36`
-- targetSdk `36`
-- minSdk `24`
 
 ### Deployment
 
-| <img src="https://cdn.simpleicons.org/vercel/000000" width="48" /> | <img src="https://cdn.simpleicons.org/railway/0B0D0E" width="48" /> | <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/githubactions/githubactions-original.svg" width="48" /> |
+| <img src="https://cdn.simpleicons.org/vercel/FFFFFF" width="48" /> | <img src="https://cdn.simpleicons.org/githubactions/2088FF" width="48" /> | <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/android/android-original.svg" width="48" /> |
 | :---: | :---: | :---: |
-| Vercel | Railway | GitHub Actions |
+| Vercel | GitHub Actions | Android WebView |
 
 ---
 
-## 🔌 주요 API
-
-| Method | Endpoint | 설명 |
-| --- | --- | --- |
-| `POST` | `/api/auth/signup` | 회원가입 |
-| `POST` | `/api/auth/login` | 로그인 / JWT 발급 |
-| `GET` | `/api/users/me` | 현재 사용자 조회 |
-| `GET` | `/api/streak` | 현재 streak 조회 |
-| `POST` | `/api/streak/start` | streak 시작 |
-| `POST` | `/api/streak/reset` | 현재 streak 리셋 |
-| `GET` | `/api/checkins` | 기간별 체크인 조회 |
-| `POST` | `/api/checkins` | 체크인 저장 |
-| `GET` | `/api/rankings` | TOP 100 / 내 순위 조회 |
-| `GET` | `/api/statistics` | 개인 누적 통계 |
-| `GET` | `/api/motivation/quote` | 랜덤 초월글 조회 |
-| `GET` | `/api/motivation/crawl-status` | 크롤러 상태 조회 |
-
-백엔드 세부 구현과 환경변수는 [GoldenDaughter_BackEnd](https://github.com/dh1180/GoldenDaughter_BackEnd)에서 확인할 수 있습니다.
-
----
-
-## 📂 Project Structure
+## 📁 Project Structure
 
 ```text
 GoldenDaughter_FrontEnd/
 ├── src/
-│   ├── App.jsx              # 주요 화면 및 사용자 기능
-│   ├── api.js               # Backend API 요청
-│   ├── main.jsx             # React Entry Point
-│   └── styles.css           # 전체 UI 스타일
-├── android-app/
-│   └── app/                 # Android WebView Wrapper
+│   ├── App.jsx
+│   ├── localData.js
+│   ├── api.js                 # 기존 서버 기록 1회 이관용
+│   ├── main.jsx
+│   └── styles.css
+├── scripts/
+│   └── update_transcendence_posts.py
 ├── public/
-│   ├── icon-192.png
-│   ├── icon-512.png
+│   ├── transcendence-posts.json
 │   └── GoldenDaughter.apk
-├── .github/
-│   └── workflows/           # Frontend CI / Android APK Build
+├── android-app/
+├── .github/workflows/
+│   ├── android-apk.yml
+│   └── update-transcendence-posts.yml
 ├── vercel.json
 ├── package.json
 └── README.md
@@ -256,32 +217,10 @@ GoldenDaughter_FrontEnd/
 
 ---
 
-## 💻 Local Development
-
-### 1. Repository Clone
-
-```bash
-git clone https://github.com/dh1180/GoldenDaughter_FrontEnd.git
-cd GoldenDaughter_FrontEnd
-```
-
-### 2. Install
+## 💻 Local Run
 
 ```bash
 npm install
-```
-
-### 3. Environment Variable
-
-프로젝트 루트에 `.env`를 생성합니다.
-
-```env
-VITE_API_BASE_URL=http://localhost:8080
-```
-
-### 4. Run
-
-```bash
 npm run dev
 ```
 
@@ -291,96 +230,54 @@ npm run dev
 http://localhost:5173
 ```
 
-### Build
-
-```bash
-npm run build
-```
+Backend 서버는 필요하지 않습니다.
 
 ---
 
-## 🚢 Deployment
+## 🤖 DC Crawler
+
+크롤러는 다음 명령으로 로컬에서도 실행할 수 있습니다.
+
+```bash
+pip install requests beautifulsoup4
+python scripts/update_transcendence_posts.py
+```
+
+GitHub Actions에서는 매일 자동 실행되며 `public/transcendence-posts.json`에 변경이 있을 때만 커밋합니다.
+
+---
+
+## 🚀 Deployment
 
 ### Web
 
-Frontend는 **Vercel**에서 배포합니다.
-
-```env
-VITE_API_BASE_URL=https://<backend-domain>
-```
-
-현재 서비스 도메인:
+Vercel이 GitHub `main` 브랜치를 자동 배포합니다.
 
 ```text
 https://golden-daughter.kro.kr
 ```
 
-### Backend
+별도의 Backend URL 또는 DB 환경변수는 필요하지 않습니다.
 
-Backend와 PostgreSQL은 **Railway**에서 운영합니다.
+### Android
 
-```text
-React / Vercel
-      ↓
-Spring Boot / Railway
-      ↓
-PostgreSQL / Railway
-```
-
-### Android APK
-
-GitHub Actions가 Android 프로젝트를 빌드하고 생성된 APK를 `public/GoldenDaughter.apk`에 반영합니다.
-
-APK는 아래 주소에서 직접 받을 수 있습니다.
+APK는 GitHub Actions에서 빌드해 다음 경로로 배포합니다.
 
 ```text
 https://golden-daughter.kro.kr/GoldenDaughter.apk
 ```
 
-APK 응답에는 오래된 설치 파일이 캐시되지 않도록 `Cache-Control: no-store`가 적용되어 있습니다.
+일반적인 React 기능 변경은 웹 배포만으로 Android WebView에도 반영되며, Android 네이티브 코드가 바뀐 경우에만 새 APK가 필요합니다.
 
 ---
 
-## 🔄 WebView 업데이트 방식
+## 📌 저장 방식 주의사항
 
-Android 앱은 사이트를 WebView로 실행하기 때문에 일반적인 React 기능 수정은 APK 자체를 다시 배포하지 않아도 됩니다.
+GoldenDaughter는 현재 개인용 앱으로 운영되며 계정 서버가 없습니다.
 
-앱 실행 시:
+따라서 다음 작업을 수행하기 전에는 반드시 JSON 백업을 권장합니다.
 
-```text
-WebView cache 미사용
-        ↓
-기존 cache 삭제
-        ↓
-refresh timestamp가 포함된 URL 요청
-        ↓
-현재 Vercel 배포본 로드
-```
-
-따라서:
-
-- React / CSS / API 연동 변경 → 웹 배포 후 앱 재실행
-- Android Native 코드 변경 → 새 APK 설치 필요
-
----
-
-## 🔐 Privacy & Authentication
-
-- JWT 기반 인증
-- 사용자별 streak / check-in / statistics 분리
-- 랭킹에는 닉네임과 기록 정보만 사용
-- 이메일 등 계정 정보는 랭킹 API에서 반환하지 않음
-
----
-
-## 📌 Related Repository
-
-- **Backend** — [dh1180/GoldenDaughter_BackEnd](https://github.com/dh1180/GoldenDaughter_BackEnd)
-
----
-
-<div align="center">
-
-**GoldenDaughter — 오늘 하루의 기록을 계속 쌓아가기.**
-
-</div>
+- 브라우저 데이터 삭제
+- GoldenDaughter 앱 데이터 삭제
+- 휴대폰 초기화
+- 다른 기기로 이동
