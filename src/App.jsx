@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { api, tokenStore } from './api.js'
 import PwaInstallPrompt from './PwaInstallPrompt.jsx'
 import {
   exportBackupJson,
   importBackupJson,
-  importLegacyData,
   localStatistics,
-  markMigrationDone,
-  migrationDone,
   readLocalState,
   resetLocalStreak,
   saveLocalCheckin,
@@ -26,47 +22,15 @@ const localDateTimeValue = () => {
 const DC_LIST_URL = 'https://gall.dcinside.com/mgallery/board/lists/?id=hyunjatime&sort_type=N&search_head=190&page=1'
 
 export default function App() {
-  const [ready, setReady] = useState(false)
-  const [migrationNotice, setMigrationNotice] = useState('')
-
   useEffect(() => {
-    const migrate = async () => {
-      if (migrationDone()) {
-        setReady(true)
-        return
-      }
-
-      const token = tokenStore.get()
-      if (!token) {
-        markMigrationDone()
-        setReady(true)
-        return
-      }
-
-      try {
-        setMigrationNotice('기존 서버 기록을 이 휴대폰으로 옮기는 중...')
-        const [me, streak, stats, checkins] = await Promise.all([
-          api('/api/users/me'),
-          api('/api/streak'),
-          api('/api/statistics'),
-          api('/api/checkins?from=2020-01-01&to=2100-12-31'),
-        ])
-        importLegacyData({ me, streak, stats, checkins })
-        setMigrationNotice('기존 서버 기록을 로컬 저장소로 옮겼습니다.')
-        tokenStore.clear()
-      } catch (err) {
-        setMigrationNotice(`기존 서버 기록 자동 이관 실패: ${err.message}`)
-      } finally {
-        setReady(true)
-      }
-    }
-    migrate()
+    localStorage.removeItem('gd_token')
+    localStorage.removeItem('gd_server_migration_done_v1')
   }, [])
 
-  return <><PwaInstallPrompt />{ready ? <Dashboard migrationNotice={migrationNotice} /> : <CenteredMessage text={migrationNotice || '로컬 기록을 준비하는 중...'} />}</>
+  return <><PwaInstallPrompt /><Dashboard /></>
 }
 
-function Dashboard({ migrationNotice }) {
+function Dashboard() {
   const [tab, setTab] = useState('home')
   const [version, setVersion] = useState(0)
   const state = useMemo(() => readLocalState(), [version])
@@ -88,7 +52,6 @@ function Dashboard({ migrationNotice }) {
       </header>
 
       <main className="content">
-        {migrationNotice && <p className="card tiny muted">{migrationNotice}</p>}
         {tab === 'home' && <HomePage />}
         {tab === 'calendar' && <CalendarPage />}
         {tab === 'stats' && <StatisticsPage />}
@@ -356,7 +319,6 @@ function StatisticsPage() {
       <p className="eyebrow">LOCAL STORAGE</p>
       <h2>기록은 이 기기에만 저장됩니다.</h2>
       <p className="muted">앱 데이터 삭제나 브라우저 데이터 초기화 전에 백업 파일을 만들어두세요.</p>
-      {state.migratedAt && <p className="tiny muted">서버 기록 이관: {new Date(state.migratedAt).toLocaleString()}</p>}
       <div className="button-grid">
         <button className="primary" onClick={downloadBackup}>백업 파일 저장</button>
         <button className="ghost" onClick={copyBackup}>JSON 복사</button>
@@ -385,10 +347,6 @@ function Modal({ children, onClose }) {
       <div className="stack gap-md">{children}</div>
     </section>
   </div>
-}
-
-function CenteredMessage({ text, inline = false }) {
-  return <div className={inline ? 'center-message inline' : 'center-message'}>{text}</div>
 }
 
 function formatElapsed(total) {
