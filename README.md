@@ -152,22 +152,7 @@ transcendence-posts.json
 Vercel
 ```
 
-회원가입, 로그인, JWT, 사용자 순위는 현재 운영 버전에서 사용하지 않습니다.
-
----
-
-## 🔄 Legacy Server Data Migration
-
-이전 서버 버전의 기록은 로컬 저장 버전 최초 실행 시 기존 JWT가 남아 있는 경우 한 번 이관할 수 있도록 구성했습니다.
-
-이관 대상:
-
-- 닉네임
-- 현재 Streak 시작 시각
-- 날짜별 Check-in
-- 기존 최고 기록
-
-이관 완료 후에는 Backend API 없이 동작합니다.
+현재 운영 버전은 회원가입, 로그인, JWT, 사용자 계정, 사용자 순위를 사용하지 않습니다.
 
 ---
 
@@ -202,7 +187,6 @@ GoldenDaughter_FrontEnd/
 ├── src/
 │   ├── App.jsx
 │   ├── localData.js
-│   ├── api.js                 # Legacy 데이터 1회 이관
 │   ├── main.jsx
 │   └── styles.css
 ├── scripts/
