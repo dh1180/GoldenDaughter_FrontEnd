@@ -1,5 +1,4 @@
 const STORAGE_KEY = 'gd_local_state_v1'
-const MIGRATION_KEY = 'gd_server_migration_done_v1'
 
 const defaultState = () => ({
   version: 1,
@@ -8,7 +7,6 @@ const defaultState = () => ({
   streakHistory: [],
   checkins: {},
   bestDayFloor: 0,
-  migratedAt: null,
 })
 
 export function readLocalState() {
@@ -32,47 +30,6 @@ export function writeLocalState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, version: 1 }))
   window.dispatchEvent(new Event('gd-local-data-changed'))
   return state
-}
-
-export function hasLocalData() {
-  return Boolean(localStorage.getItem(STORAGE_KEY))
-}
-
-export function migrationDone() {
-  return localStorage.getItem(MIGRATION_KEY) === 'true'
-}
-
-export function markMigrationDone() {
-  localStorage.setItem(MIGRATION_KEY, 'true')
-}
-
-export function importLegacyData({ me, streak, stats, checkins }) {
-  const state = readLocalState()
-  const nextCheckins = { ...state.checkins }
-
-  for (const item of Array.isArray(checkins) ? checkins : []) {
-    if (!item?.date) continue
-    nextCheckins[item.date] = {
-      date: item.date,
-      status: item.status || 'SUCCESS',
-      memo: item.memo || '',
-    }
-  }
-
-  const next = {
-    ...state,
-    profile: { nickname: me?.nickname || state.profile.nickname || '나' },
-    currentStreak: streak?.active && streak?.startedAt
-      ? { startedAt: streak.startedAt }
-      : state.currentStreak,
-    checkins: nextCheckins,
-    bestDayFloor: Math.max(state.bestDayFloor || 0, Number(stats?.bestDay || 0)),
-    migratedAt: new Date().toISOString(),
-  }
-
-  writeLocalState(next)
-  markMigrationDone()
-  return next
 }
 
 export function startLocalStreak(startedAt) {
