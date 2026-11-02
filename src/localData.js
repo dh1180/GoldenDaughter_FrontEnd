@@ -42,7 +42,7 @@ export function startLocalStreak(startedAt) {
 
 export function resetLocalStreak() {
   const state = readLocalState()
-  const now = new Date().toISOString()
+  const now = new Date(Date.now()).toISOString()
   const history = [...state.streakHistory]
   let bestDayFloor = state.bestDayFloor || 0
 
