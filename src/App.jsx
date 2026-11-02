@@ -3,6 +3,7 @@ import PwaInstallPrompt from './PwaInstallPrompt.jsx'
 import {
   exportBackupJson,
   importBackupJson,
+  parseBackupJson,
   localStatistics,
   readLocalState,
   resetLocalStreak,
@@ -76,7 +77,23 @@ function HomePage() {
   const [posts, setPosts] = useState([])
   const [tick, setTick] = useState(Date.now())
   const [showStart, setShowStart] = useState(false)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+
+  const confirmReset = () => {
+    try {
+      const next = resetLocalStreak()
+      setStreak(next.currentStreak)
+      setTick(Date.now())
+      setShowResetConfirm(false)
+      setNotice('현재 기록을 DAY 1부터 다시 시작했습니다. 이전 기록과 체크인은 보존됩니다.')
+      setError('')
+    } catch {
+      setShowResetConfirm(false)
+      setError('기록을 저장하지 못했습니다. 저장공간을 확인한 후 다시 시도해주세요.')
+    }
+  }
 
   const choosePost = (list) => {
     if (!list?.length) {
@@ -118,7 +135,8 @@ function HomePage() {
 
   return (
     <div className="stack gap-lg">
-      {error && <p className="error card">{error}</p>}
+      {error && <p className="error card" role="alert">{error}</p>}
+      {notice && <p className="local-notice" role="status">{notice}</p>}
       <section className="hero-card">
         <p className="eyebrow">CURRENT STREAK</p>
         {streak?.startedAt ? (
@@ -126,6 +144,9 @@ function HomePage() {
             <div className="day-number">DAY {day}</div>
             <div className="timer">{formatElapsed(elapsed)}</div>
             <div className="goal-row"><span>다음 목표</span><strong>DAY {nextGoal}</strong></div>
+            <button type="button" className="reset-trigger" onClick={() => setShowResetConfirm(true)}>
+              <span aria-hidden="true">↺</span> 현재 기록 초기화
+            </button>
           </>
         ) : (
           <>
@@ -149,12 +170,22 @@ function HomePage() {
         </section>
       )}
 
-      {streak?.startedAt && (
-        <button className="danger-link" onClick={() => {
-          if (!confirm('현재 기록을 종료하고 DAY 1부터 다시 시작할까요? 이전 기록은 이 기기에 보존됩니다.')) return
-          const state = resetLocalStreak()
-          setStreak(state.currentStreak)
-        }}>기록 리셋</button>
+      {showResetConfirm && (
+        <Modal label="현재 기록 초기화 확인" onClose={() => setShowResetConfirm(false)}>
+          <p className="eyebrow">RESET STREAK</p>
+          <h2>현재 기록을 다시 시작할까요?</h2>
+          <p className="muted">진행 중인 연속 기록만 종료하고 지금부터 DAY 1로 시작합니다.</p>
+          <div className="reset-preview">
+            <div><span>현재 기록</span><strong>DAY {day}</strong></div>
+            <span aria-hidden="true" className="reset-arrow">→</span>
+            <div><span>초기화 후</span><strong>DAY 1</strong></div>
+          </div>
+          <p className="tiny muted">기존 체크인, 최고 기록, 지난 연속 기록은 삭제되지 않습니다.</p>
+          <div className="reset-actions">
+            <button type="button" className="ghost" onClick={() => setShowResetConfirm(false)}>취소</button>
+            <button type="button" className="reset-confirm" onClick={confirmReset}>DAY 1부터 다시 시작</button>
+          </div>
+        </Modal>
       )}
 
       {showStart && <StartModal onClose={() => setShowStart(false)} onStarted={(s) => { setStreak(s); setShowStart(false) }} />}
@@ -213,14 +244,24 @@ function CalendarPage() {
     setMemo(selectedItem?.memo || '')
   }
 
-  useEffect(() => { load() }, [year, month])
+  useEffect(() => { load() }, [year, month, selected])
 
   const selectDay = (date) => {
     setSelected(date)
     setSaved(false)
-    const item = byDate[date]
+    const item = readLocalState().checkins[date]
     setStatus(item?.status || 'SUCCESS')
     setMemo(item?.memo || '')
+  }
+
+  const moveMonth = (offset) => {
+    const next = new Date(year, month + offset, 1)
+    const today = new Date()
+    const date = next.getFullYear() === today.getFullYear() && next.getMonth() === today.getMonth()
+      ? todayString()
+      : `${next.getFullYear()}-${pad(next.getMonth() + 1)}-01`
+    setCursor(next)
+    selectDay(date)
   }
 
   const save = () => {
@@ -233,9 +274,9 @@ function CalendarPage() {
     <section className="section-heading"><p className="eyebrow">DAILY CHECK-IN</p><h1>기록 캘린더</h1></section>
     <section className="calendar-card">
       <div className="month-head">
-        <button className="ghost icon" onClick={() => setCursor(new Date(year, month - 1, 1))}>‹</button>
+        <button type="button" className="ghost icon" aria-label="이전 달" onClick={() => moveMonth(-1)}>‹</button>
         <strong>{year}. {pad(month + 1)}</strong>
-        <button className="ghost icon" onClick={() => setCursor(new Date(year, month + 1, 1))}>›</button>
+        <button type="button" className="ghost icon" aria-label="다음 달" onClick={() => moveMonth(1)}>›</button>
       </div>
       <div className="weekdays">{['일','월','화','수','목','금','토'].map((d) => <span key={d}>{d}</span>)}</div>
       <div className="calendar-grid">
@@ -260,6 +301,10 @@ function StatisticsPage() {
   const [stats, setStats] = useState(() => localStatistics())
   const [state, setState] = useState(() => readLocalState())
   const [message, setMessage] = useState('')
+  const [showPaste, setShowPaste] = useState(false)
+  const [pasteValue, setPasteValue] = useState('')
+  const [pasteError, setPasteError] = useState('')
+  const [pendingRestore, setPendingRestore] = useState(null)
   const fileRef = useRef(null)
 
   useEffect(() => {
@@ -293,18 +338,42 @@ function StatisticsPage() {
     }
   }
 
+  const prepareRestore = (text) => {
+    const preview = parseBackupJson(text)
+    setPendingRestore({ text, preview })
+    setMessage('')
+  }
+
   const importFile = async (event) => {
     const file = event.target.files?.[0]
     if (!file) return
     try {
-      importBackupJson(await file.text())
-      setMessage('백업을 복원했습니다.')
+      prepareRestore(await file.text())
     } catch (err) {
       setMessage(err.message)
     } finally {
       event.target.value = ''
     }
   }
+
+  const restore = () => {
+    if (!pendingRestore) return
+    try {
+      importBackupJson(pendingRestore.text)
+      setMessage('백업이 정상적으로 복원됐습니다.')
+      setPendingRestore(null)
+      setPasteValue('')
+      setPasteError('')
+    } catch (err) {
+      setMessage(err.message)
+      setPendingRestore(null)
+    }
+  }
+
+  const previousStreaks = [...state.streakHistory]
+    .filter((entry) => entry?.startedAt && entry?.endedAt)
+    .reverse()
+    .slice(0, 5)
 
   return <div className="stack gap-lg">
     <section className="section-heading"><p className="eyebrow">MY RECORD</p><h1>누적 통계</h1></section>
@@ -316,6 +385,21 @@ function StatisticsPage() {
     </div>
 
     <section className="card">
+      <p className="eyebrow">STREAK HISTORY</p>
+      <h2>지난 연속 기록</h2>
+      {previousStreaks.length ? (
+        <div className="history-list">
+          {previousStreaks.map((entry, index) => (
+            <div key={`${entry.startedAt}-${index}`} className="history-entry">
+              <div><strong>DAY {entry.day || 1}</strong><span>{new Date(entry.endedAt).toLocaleDateString('ko-KR')} 종료</span></div>
+              <span className="tiny muted">기록 보관됨</span>
+            </div>
+          ))}
+        </div>
+      ) : <p className="muted">아직 종료한 연속 기록이 없습니다. 기록을 초기화하면 여기에 남아요.</p>}
+    </section>
+
+    <section className="card">
       <p className="eyebrow">LOCAL STORAGE</p>
       <h2>기록은 이 기기에만 저장됩니다.</h2>
       <p className="muted">앱 데이터 삭제나 브라우저 데이터 초기화 전에 백업 파일을 만들어두세요.</p>
@@ -324,8 +408,9 @@ function StatisticsPage() {
         <button className="ghost" onClick={copyBackup}>JSON 복사</button>
       </div>
       <button className="ghost" style={{ width: '100%', marginTop: 10 }} onClick={() => fileRef.current?.click()}>백업 파일 가져오기</button>
+      <button className="text-button" style={{ width: '100%' }} onClick={() => { setPasteError(''); setShowPaste(true) }}>JSON 붙여넣기로 복원</button>
       <input ref={fileRef} type="file" accept="application/json,.json" onChange={importFile} style={{ display: 'none' }} />
-      {message && <p className="tiny muted">{message}</p>}
+      {message && <p className="tiny muted" role="status">{message}</p>}
     </section>
 
     <section className="card">
@@ -333,6 +418,40 @@ function StatisticsPage() {
       <h2>오늘 하루의 기록을 계속 쌓아가세요.</h2>
       <p className="muted">위기 상황은 캘린더의 “위기 있었음” 체크인으로 남길 수 있습니다.</p>
     </section>
+
+    {showPaste && (
+      <Modal label="JSON 백업 붙여넣기" onClose={() => setShowPaste(false)}>
+        <p className="eyebrow">RESTORE BACKUP</p>
+        <h2>백업 JSON 붙여넣기</h2>
+        <p className="muted">Android에서 파일 선택이 안 될 때는 복사해 둔 JSON을 여기에 붙여넣으세요.</p>
+        <textarea aria-label="백업 JSON 내용" rows={8} value={pasteValue} onChange={(e) => { setPasteValue(e.target.value); setPasteError('') }} placeholder="GoldenDaughter 백업 JSON" />
+        {pasteError && <p className="error" role="alert">{pasteError}</p>}
+        <button className="primary" type="button" disabled={!pasteValue.trim()} onClick={() => {
+          try {
+            prepareRestore(pasteValue)
+            setShowPaste(false)
+          } catch (err) {
+            setPasteError(err.message)
+          }
+        }}>복원 내용 확인</button>
+      </Modal>
+    )}
+
+    {pendingRestore && (
+      <Modal label="백업 복원 확인" onClose={() => setPendingRestore(null)}>
+        <p className="eyebrow">CONFIRM RESTORE</p>
+        <h2>이 백업으로 복원할까요?</h2>
+        <p className="muted">복원하면 현재 기기의 기록을 백업 내용으로 교체합니다. 필요하면 먼저 지금 기록을 백업해두세요.</p>
+        <div className="restore-preview">
+          <span>백업 체크인 <strong>{Object.keys(pendingRestore.preview.checkins).length}개</strong></span>
+          <span>백업 지난 기록 <strong>{pendingRestore.preview.streakHistory.length}개</strong></span>
+        </div>
+        <div className="reset-actions">
+          <button type="button" className="ghost" onClick={() => setPendingRestore(null)}>취소</button>
+          <button type="button" className="primary" onClick={restore}>이 백업으로 복원</button>
+        </div>
+      </Modal>
+    )}
   </div>
 }
 
@@ -340,10 +459,18 @@ function StatCard({ label, value }) {
   return <section className="stat-card"><span>{label}</span><strong>{value}</strong></section>
 }
 
-function Modal({ children, onClose }) {
+function Modal({ children, onClose, label = '대화상자' }) {
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
   return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-    <section className="modal-card">
-      <button className="modal-close" onClick={onClose}>×</button>
+    <section className="modal-card" role="dialog" aria-modal="true" aria-label={label}>
+      <button type="button" className="modal-close" aria-label="닫기" onClick={onClose}>×</button>
       <div className="stack gap-md">{children}</div>
     </section>
   </div>

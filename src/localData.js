@@ -104,18 +104,36 @@ export function exportBackupJson() {
   }, null, 2)
 }
 
-export function importBackupJson(text) {
+export function parseBackupJson(text) {
   const parsed = JSON.parse(text)
-  const data = parsed?.data || parsed
-  if (!data || typeof data !== 'object') throw new Error('올바른 GoldenDaughter 백업 파일이 아닙니다.')
-  const next = {
+  if (parsed?.app && parsed.app !== 'GoldenDaughter') {
+    throw new Error('GoldenDaughter 백업 파일이 아닙니다.')
+  }
+  const data = parsed?.data ?? parsed
+  if (!data || typeof data !== 'object' || Array.isArray(data)
+      || !('currentStreak' in data) || !('checkins' in data)) {
+    throw new Error('올바른 GoldenDaughter 백업 파일이 아닙니다.')
+  }
+  if (data.currentStreak != null
+      && (!data.currentStreak.startedAt || Number.isNaN(Date.parse(data.currentStreak.startedAt)))) {
+    throw new Error('백업 파일의 시작 시각이 올바르지 않습니다.')
+  }
+  if (!data.checkins || typeof data.checkins !== 'object' || Array.isArray(data.checkins)
+      || (data.streakHistory != null && !Array.isArray(data.streakHistory))) {
+    throw new Error('백업 파일의 기록 형식이 올바르지 않습니다.')
+  }
+  return {
     ...defaultState(),
     ...data,
     version: 1,
     profile: { ...defaultState().profile, ...(data.profile || {}) },
     streakHistory: Array.isArray(data.streakHistory) ? data.streakHistory : [],
-    checkins: data.checkins && typeof data.checkins === 'object' ? data.checkins : {},
+    checkins: data.checkins,
   }
+}
+
+export function importBackupJson(text) {
+  const next = parseBackupJson(text)
   writeLocalState(next)
   return next
 }
